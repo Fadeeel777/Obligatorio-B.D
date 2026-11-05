@@ -5,7 +5,7 @@ DELIMITER $$
 
 
 
--- Trigger en caso de que el jugador esté suspendido
+-- En caso de que el jugador esté suspendido
 
 DROP FUNCTION IF EXISTS fn_sancionado$$
 CREATE FUNCTION fn_sancionado(p_ci VARCHAR(8), p_id_torneo INT, p_numero_fecha INT)
@@ -20,7 +20,7 @@ BEGIN
                                     AND s.numero_fecha_inicio + s.cantidad_fechas - 1);
 END$$
 
--- Trigger para que la Planilla, goles y tarjetas solo se toquen con el partido jugado y dentro de
+-- Este procedimiento verifica que la Planilla, goles y tarjetas solo se puedan modificar con el partido jugado y dentro de
 -- las 48 h posteriores a su disputa (fecha_hora_jugado).
 DROP PROCEDURE IF EXISTS sp_exigir_partido_editable$$
 CREATE PROCEDURE sp_exigir_partido_editable(IN p_id_partido INT)
@@ -44,7 +44,7 @@ BEGIN
   END IF;
 END$$
 
--- Trigger para que un partido solo puede marcarse como jugado si su día y turno ya pasaron.
+-- Procedimiento para que un partido solo puede marcarse como jugado si su día y turno ya pasaron.
 DROP PROCEDURE IF EXISTS sp_exigir_turno_pasado$$
 CREATE PROCEDURE sp_exigir_turno_pasado(IN p_dia DATE, IN p_id_turno INT)
 BEGIN
@@ -56,7 +56,7 @@ BEGIN
   END IF;
 END$$
 
--- Trigger con reglas al programar un partido (p_id_partido = 0 si todavía no existe).
+-- Procedimiento con reglas al programar un partido (p_id_partido = 0 si todavía no existe).
 DROP PROCEDURE IF EXISTS sp_validar_partido$$
 CREATE PROCEDURE sp_validar_partido(
   IN p_id_partido INT, IN p_id_torneo INT, IN p_numero_fecha INT,
@@ -72,7 +72,7 @@ BEGIN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El torneo esta finalizado: no se pueden programar partidos';
   END IF;
 
-  -- Trigger para que el día caiga dentro de la fecha del torneo
+  -- Esto es para que el día caiga dentro de la fecha del torneo
   SELECT fecha_desde, fecha_hasta INTO v_desde, v_hasta
     FROM fecha_torneo WHERE id_torneo = p_id_torneo AND numero_fecha = p_numero_fecha;
   IF p_dia < v_desde OR p_dia > v_hasta THEN
@@ -80,14 +80,14 @@ BEGIN
       SET MESSAGE_TEXT = 'El dia del partido esta fuera del rango de la fecha del torneo';
   END IF;
 
-  -- Trigger para que ambos equipos tengan al menos 5 jugadores en el plantel
+  -- Esto tiene la finalidad de que ambos equipos tengan al menos 5 jugadores en el plantel
   IF (SELECT COUNT(*) FROM equipo_jugador_torneo WHERE id_equipo = p_local) < 5
   OR (SELECT COUNT(*) FROM equipo_jugador_torneo WHERE id_equipo = p_visitante) < 5 THEN
     SIGNAL SQLSTATE '45000'
       SET MESSAGE_TEXT = 'Ambos equipos deben tener al menos 5 jugadores en su plantel';
   END IF;
 
-  -- Trigger para que no se pueda repetir un rival en la edición (salvo partido cancelado)
+  -- Sirve para que no se pueda repetir un rival en la edición (salvo partido cancelado)
   IF EXISTS (SELECT 1 FROM partido x
               WHERE x.id_torneo = p_id_torneo AND x.id_partido <> p_id_partido
                 AND x.estado <> 'cancelado'
@@ -97,7 +97,7 @@ BEGIN
       SET MESSAGE_TEXT = 'Estos equipos ya tienen un partido en esta edicion (salvo que haya sido cancelado)';
   END IF;
 
-  -- Trigger para que un equipo no juegue más de un partido por fecha
+  -- Código para que un equipo no juegue más de un partido por fecha
   IF EXISTS (SELECT 1 FROM partido x
               WHERE x.id_torneo = p_id_torneo AND x.numero_fecha = p_numero_fecha
                 AND x.id_partido <> p_id_partido AND x.estado <> 'cancelado'
@@ -107,7 +107,7 @@ BEGIN
       SET MESSAGE_TEXT = 'Uno de los equipos ya juega otro partido en esa fecha del torneo';
   END IF;
 
-  -- Trigger de que la cancha esté libre en ese día y turno
+  -- Código de que la cancha esté libre en ese día y turno
   IF EXISTS (SELECT 1 FROM partido x
               WHERE x.id_partido <> p_id_partido AND x.estado <> 'cancelado'
                 AND x.id_complejo = p_id_complejo AND x.nombre_cancha = p_cancha
