@@ -934,147 +934,29 @@ def listar_partidos():
 @app.route("/partidos", methods=["POST"])
 @requiere_rol("administrador")
 def crear_partido():
-    datos = request.get_json(silent=True)
-    if not isinstance(datos, dict):
+    datos = datos_json()
+    if datos is None:
         return jsonify({"error": "JSON inválido"}), 400
 
-    campos = [
-        "id_torneo", "numero_fecha", "id_equipo_local",
-        "id_equipo_visitante", "dia", "id_turno",
-        "nombre_cancha", "id_complejo"
-    ]
-
-    if any(datos.get(campo) is None for campo in campos):
-        return jsonify({"error": "Faltan campos obligatorios"}), 400
-
-    try:
-        id_torneo = int(datos["id_torneo"])
-        numero_fecha = int(datos["numero_fecha"])
-        local = int(datos["id_equipo_local"])
-        visitante = int(datos["id_equipo_visitante"])
-        id_turno = int(datos["id_turno"])
-        id_complejo = int(datos["id_complejo"])
-        dia = datetime.strptime(datos["dia"], "%Y-%m-%d").date()
-        nombre_cancha = str(datos["nombre_cancha"]).strip()
-    except (ValueError, TypeError):
-        return jsonify({"error": "Datos numéricos o fecha inválidos"}), 400
-
-    if any(n < 1 for n in (
-        id_torneo, numero_fecha, local, visitante, id_turno, id_complejo
-    )):
-        return jsonify({"error": "Los identificadores deben ser positivos"}), 400
-
-    if not nombre_cancha or len(nombre_cancha) > 50:
-        return jsonify({"error": "Nombre de cancha inválido"}), 400
-
-    if local == visitante:
-        return jsonify({"error": "Un equipo no puede jugar contra sí mismo"}), 400
-
-    conexion = obtener_conexion()
-    cursor = conexion.cursor(dictionary=True)
+    campos = ("id_torneo", "numero_fecha", "id_equipo_local",
+              "id_equipo_visitante", "id_turno", "id_complejo")
+    valores = [numero_entero(datos.get(c)) for c in campos]
+    dia = fecha_valida(datos.get("dia"))
+    cancha = datos.get("nombre_cancha")
+    if (any(v is None or v < 1 for v in valores) or not dia
+            or not isinstance(cancha, str) or not cancha.strip()
+            or len(cancha.strip()) > 50):
+        return jsonify({"error": "Datos del partido inválidos"}), 400
 
     try:
-        # Comprobar que el torneo está en curso o inscripción.
-        cursor.execute(
-            "SELECT estado FROM torneo WHERE id_torneo = %s",
-            (id_torneo,)
-        )
-        torneo = cursor.fetchone()
+        resultados = ejecutar_procedimiento("sp_programar_partido", [
+            valores[0], valores[1], valores[2], valores[3],
+            dia, valores[4], cancha.strip(), valores[5]
+        ])
+        return jsonify({"mensaje": "Partido programado", "resultados": resultados}), 201
+    except Error as error:
+        return error_procedimiento(error)
 
-        if not torneo:
-            return jsonify({"error": "Torneo inexistente"}), 404
-
-        if torneo["estado"] == "finalizado":
-            return jsonify({"error": "El torneo está finalizado"}), 400
-
-        # Comprobar fecha del torneo.
-        cursor.execute("""
-            SELECT fecha_desde, fecha_hasta
-            FROM fecha_torneo
-            WHERE id_torneo = %s AND numero_fecha = %s
-        """, (id_torneo, numero_fecha))
-        fecha = cursor.fetchone()
-
-        if not fecha:
-            return jsonify({"error": "Fecha del torneo inexistente"}), 404
-
-        if not fecha["fecha_desde"] <= dia <= fecha["fecha_hasta"]:
-            return jsonify({
-                "error": "El día está fuera del período de esa fecha"
-            }), 400
-
-        # Comprobar ambos equipos.
-        cursor.execute("""
-            SELECT id_equipo FROM equipo
-            WHERE id_torneo = %s
-              AND id_equipo IN (%s, %s)
-        """, (id_torneo, local, visitante))
-
-        if len(cursor.fetchall()) != 2:
-            return jsonify({
-                "error": "Los dos equipos deben pertenecer al torneo"
-            }), 400
-
-        # Comprobar que cancha y turno estén disponibles.
-        cursor.execute("""
-            SELECT id_partido FROM partido
-            WHERE dia = %s
-              AND id_turno = %s
-              AND nombre_cancha = %s
-              AND id_complejo = %s
-              AND estado IN ('programado', 'jugado')
-        """, (dia, id_turno, nombre_cancha, id_complejo))
-
-        if cursor.fetchone():
-            return jsonify({
-                "error": "La cancha ya está ocupada en ese turno"
-            }), 409
-
-        # Comprobar que los equipos no tengan otro partido.
-        cursor.execute("""
-            SELECT id_partido FROM partido
-            WHERE dia = %s AND id_turno = %s
-              AND estado IN ('programado', 'jugado')
-              AND (
-                id_equipo_local IN (%s, %s)
-                OR id_equipo_visitante IN (%s, %s)
-              )
-        """, (dia, id_turno, local, visitante, local, visitante))
-
-        if cursor.fetchone():
-            return jsonify({
-                "error": "Uno de los equipos ya juega en ese turno"
-            }), 409
-
-        cursor.execute("""
-            INSERT INTO partido (
-                id_torneo, numero_fecha,
-                id_equipo_local, id_equipo_visitante,
-                dia, id_turno, nombre_cancha, id_complejo
-            )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            id_torneo, numero_fecha, local, visitante,
-            dia, id_turno, nombre_cancha, id_complejo
-        ))
-
-        conexion.commit()
-
-        return jsonify({
-            "mensaje": "Partido programado",
-            "id_partido": cursor.lastrowid
-        }), 201
-
-    except IntegrityError as error:
-        conexion.rollback()
-        return jsonify({
-            "error": "Restricción de base de datos",
-            "detalle": str(error)
-        }), 409
-
-    finally:
-        cursor.close()
-        conexion.close()
 
 
 # -------- PLANILLAS --------
@@ -1104,101 +986,18 @@ def consultar_planilla(id_partido):
 @app.route("/partidos/<int:id_partido>/planilla", methods=["POST"])
 @requiere_rol("administrador", "planillero")
 def agregar_jugador_planilla(id_partido):
-    datos = request.get_json(silent=True)
-    if not isinstance(datos, dict):
+    datos = datos_json()
+    if datos is None:
         return jsonify({"error": "JSON inválido"}), 400
-
-    ci = str(datos.get("ci_jugador") or "").strip()
-
+    ci = datos.get("ci_jugador")
+    if not isinstance(ci, str) or not ci.isdigit() or not 1 <= len(ci) <= 8:
+        return jsonify({"error": "CI inválida"}), 400
     try:
-        id_equipo = int(datos["id_equipo"])
-    except (ValueError, TypeError, KeyError):
-        return jsonify({"error": "ID de equipo inválido"}), 400
+        resultados = ejecutar_procedimiento("sp_agregar_a_planilla", [id_partido, ci])
+        return jsonify({"mensaje": "Jugador agregado a la planilla", "resultados": resultados}), 201
+    except Error as error:
+        return error_procedimiento(error)
 
-    if not ci or len(ci) > 8 or id_equipo < 1:
-        return jsonify({"error": "Datos inválidos"}), 400
-
-    conexion = obtener_conexion()
-    cursor = conexion.cursor(dictionary=True)
-
-    try:
-        cursor.execute("""
-            SELECT id_torneo, numero_fecha, estado,
-                   id_equipo_local, id_equipo_visitante
-            FROM partido
-            WHERE id_partido = %s
-        """, (id_partido,))
-
-        partido = cursor.fetchone()
-
-        if not partido:
-            return jsonify({"error": "Partido inexistente"}), 404
-
-        if partido["estado"] != "programado":
-            return jsonify({
-                "error": "Solo se puede preparar la planilla de un partido programado"
-            }), 400
-
-        if id_equipo not in (
-            partido["id_equipo_local"],
-            partido["id_equipo_visitante"]
-        ):
-            return jsonify({
-                "error": "El equipo no participa en este partido"
-            }), 400
-
-        cursor.execute("""
-            SELECT 1 FROM equipo_jugador_torneo
-            WHERE id_equipo = %s
-              AND ci_jugador = %s
-              AND id_torneo = %s
-        """, (id_equipo, ci, partido["id_torneo"]))
-
-        if cursor.fetchone() is None:
-            return jsonify({
-                "error": "El jugador no está inscrito en ese equipo"
-            }), 400
-
-        # Verificar sanciones vigentes.
-        cursor.execute("""
-            SELECT 1 FROM sancion_jugador
-            WHERE ci_jugador = %s
-              AND id_torneo = %s
-              AND %s >= numero_fecha_inicio
-              AND %s < numero_fecha_inicio + cantidad_fechas
-            LIMIT 1
-        """, (
-            ci, partido["id_torneo"],
-            partido["numero_fecha"], partido["numero_fecha"]
-        ))
-
-        if cursor.fetchone():
-            return jsonify({
-                "error": "El jugador está sancionado para esta fecha"
-            }), 400
-
-        cursor.execute("""
-            INSERT INTO planilla_partido
-            (id_partido, ci_jugador, id_equipo)
-            VALUES (%s, %s, %s)
-        """, (id_partido, ci, id_equipo))
-
-        conexion.commit()
-
-        return jsonify({
-            "mensaje": "Jugador agregado a la planilla"
-        }), 201
-
-    except IntegrityError as error:
-        conexion.rollback()
-        return jsonify({
-            "error": "Jugador duplicado o restricción incumplida",
-            "detalle": str(error)
-        }), 409
-
-    finally:
-        cursor.close()
-        conexion.close()
 
 
 # -------- GOLES --------
@@ -1206,56 +1005,24 @@ def agregar_jugador_planilla(id_partido):
 @app.route("/partidos/<int:id_partido>/goles", methods=["POST"])
 @requiere_rol("administrador", "planillero")
 def registrar_gol(id_partido):
-    datos = request.get_json(silent=True)
-    if not isinstance(datos, dict):
+    datos = datos_json()
+    if datos is None:
         return jsonify({"error": "JSON inválido"}), 400
-
-    ci = str(datos.get("ci_jugador") or "").strip()
+    ci = datos.get("ci_jugador")
     minuto = numero_entero(datos.get("minuto"))
     autogol = datos.get("autogol", False)
-
-    if not ci or len(ci) > 8 or minuto is None or not 0 <= minuto <= 60:
-        return jsonify({"error": "Jugador o minuto inválido"}), 400
-
-    if not isinstance(autogol, bool):
-        return jsonify({"error": "Autogol debe ser true o false"}), 400
-
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
-
+    if (not isinstance(ci, str) or not ci.isdigit() or not 1 <= len(ci) <= 8
+            or minuto is None or not 0 <= minuto <= 60
+            or not isinstance(autogol, bool)):
+        return jsonify({"error": "Datos del gol inválidos"}), 400
     try:
-        cursor.execute(
-            "SELECT estado FROM partido WHERE id_partido = %s",
-            (id_partido,)
-        )
-        partido = cursor.fetchone()
+        resultados = ejecutar_procedimiento("sp_registrar_gol", [
+            id_partido, ci, minuto, int(autogol)
+        ])
+        return jsonify({"mensaje": "Gol registrado", "resultados": resultados}), 201
+    except Error as error:
+        return error_procedimiento(error)
 
-        if not partido:
-            return jsonify({"error": "Partido inexistente"}), 404
-
-        if partido[0] != "programado":
-            return jsonify({"error": "No se pueden registrar goles en este estado"}), 400
-
-        cursor.execute("""
-            INSERT INTO gol (id_partido, ci_jugador, minuto, autogol)
-            VALUES (%s, %s, %s, %s)
-        """, (id_partido, ci, minuto, autogol))
-
-        conexion.commit()
-        return jsonify({
-            "mensaje": "Gol registrado",
-            "id_gol": cursor.lastrowid
-        }), 201
-
-    except IntegrityError as error:
-        conexion.rollback()
-        return jsonify({
-            "error": "El jugador debe figurar en la planilla",
-            "detalle": str(error)
-        }), 409
-    finally:
-        cursor.close()
-        conexion.close()
 
 
 # -------- TARJETAS --------
@@ -1263,57 +1030,24 @@ def registrar_gol(id_partido):
 @app.route("/partidos/<int:id_partido>/tarjetas", methods=["POST"])
 @requiere_rol("administrador", "planillero")
 def registrar_tarjeta(id_partido):
-    datos = request.get_json(silent=True)
-    if not isinstance(datos, dict):
+    datos = datos_json()
+    if datos is None:
         return jsonify({"error": "JSON inválido"}), 400
-
-    ci = str(datos.get("ci_jugador") or "").strip()
+    ci = datos.get("ci_jugador")
     minuto = numero_entero(datos.get("minuto"))
     color = datos.get("color")
-
-    if not ci or len(ci) > 8 or minuto is None or not 0 <= minuto <= 60:
-        return jsonify({"error": "Jugador o minuto inválido"}), 400
-
-    if color not in ("amarilla", "roja"):
-        return jsonify({"error": "Color inválido"}), 400
-
-    conexion = obtener_conexion()
-    cursor = conexion.cursor()
-
+    if (not isinstance(ci, str) or not ci.isdigit() or not 1 <= len(ci) <= 8
+            or minuto is None or not 0 <= minuto <= 60
+            or color not in ("amarilla", "roja")):
+        return jsonify({"error": "Datos de la tarjeta inválidos"}), 400
     try:
-        cursor.execute(
-            "SELECT estado FROM partido WHERE id_partido = %s",
-            (id_partido,)
-        )
-        partido = cursor.fetchone()
+        resultados = ejecutar_procedimiento("sp_registrar_tarjeta", [
+            id_partido, ci, minuto, color
+        ])
+        return jsonify({"mensaje": "Tarjeta registrada", "resultados": resultados}), 201
+    except Error as error:
+        return error_procedimiento(error)
 
-        if not partido:
-            return jsonify({"error": "Partido inexistente"}), 404
-
-        if partido[0] != "programado":
-            return jsonify({"error": "No se pueden registrar tarjetas en este estado"}), 400
-
-        cursor.execute("""
-            INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color)
-            VALUES (%s, %s, %s, %s)
-        """, (id_partido, ci, minuto, color))
-
-        conexion.commit()
-
-        return jsonify({
-            "mensaje": "Tarjeta registrada",
-            "id_tarjeta": cursor.lastrowid
-        }), 201
-
-    except IntegrityError as error:
-        conexion.rollback()
-        return jsonify({
-            "error": "El jugador debe figurar en la planilla",
-            "detalle": str(error)
-        }), 409
-    finally:
-        cursor.close()
-        conexion.close()
 
 
 # -------- CONSULTAR GOLES Y TARJETAS --------
@@ -1360,36 +1094,194 @@ def consultar_eventos(id_partido):
 @app.route("/partidos/<int:id_partido>/finalizar", methods=["PUT"])
 @requiere_rol("administrador", "planillero")
 def finalizar_partido(id_partido):
+    try:
+        resultados = ejecutar_procedimiento("sp_marcar_partido_jugado", [id_partido])
+        return jsonify({"mensaje": "Partido marcado como jugado", "resultados": resultados})
+    except Error as error:
+        return error_procedimiento(error)
+
+
+
+from mysql.connector import Error
+
+
+def ejecutar_procedimiento(nombre, parametros):
+    """
+    Ejecuta un procedimiento almacenado y devuelve
+    los resultados de sus SELECT, si existen.
+    """
+    permitidos = {
+        "sp_programar_partido",
+        "sp_agregar_a_planilla",
+        "sp_quitar_de_planilla",
+        "sp_registrar_gol",
+        "sp_eliminar_gol",
+        "sp_registrar_tarjeta",
+        "sp_eliminar_tarjeta",
+        "sp_marcar_partido_jugado",
+        "sp_sancion_disciplinaria",
+        "sp_cambiar_estado_torneo",
+    }
+
+    if nombre not in permitidos:
+        raise ValueError("Procedimiento no permitido")
+
     conexion = obtener_conexion()
-    cursor = conexion.cursor()
+    cursor = conexion.cursor(dictionary=True)
 
     try:
-        cursor.execute("""
-            UPDATE partido
-            SET estado = 'jugado',
-                fecha_hora_jugado = NOW()
-            WHERE id_partido = %s
-              AND estado = 'programado'
-        """, (id_partido,))
+        marcadores = ", ".join(["%s"] * len(parametros))
+        consulta = f"CALL {nombre}({marcadores})"
 
-        if cursor.rowcount == 0:
-            conexion.rollback()
-            return jsonify({
-                "error": "Partido inexistente o no está programado"
-            }), 400
+        cursor.execute(consulta, tuple(parametros))
+
+        resultados = []
+        while True:
+            if cursor.with_rows:
+                resultados.extend(cursor.fetchall())
+
+            if not cursor.nextset():
+                break
 
         conexion.commit()
-        return jsonify({"mensaje": "Partido finalizado"})
+        return resultados
 
-    except IntegrityError as error:
+    except Error:
         conexion.rollback()
-        return jsonify({
-            "error": "No se pudo finalizar",
-            "detalle": str(error)
-        }), 409
+        raise
+
     finally:
         cursor.close()
         conexion.close()
+
+@app.route("/torneos/<int:id_torneo>/estado", methods=["PUT"])
+@requiere_rol("administrador")
+def cambiar_estado_torneo(id_torneo):
+    datos = request.get_json(silent=True)
+
+    if not isinstance(datos, dict):
+        return jsonify({"error": "JSON inválido"}), 400
+
+    estado = datos.get("estado")
+
+    if estado not in ("en_curso", "finalizado"):
+        return jsonify({"error": "Estado inválido"}), 400
+
+    try:
+        ejecutar_procedimiento(
+            "sp_cambiar_estado_torneo",
+            [id_torneo, estado]
+        )
+
+        return jsonify({"mensaje": "Estado actualizado"})
+
+    except Error as error:
+        return jsonify({"error": str(error)}), 400
+
+
+
+# Operaciones adicionales mediante procedimientos almacenados.
+def error_procedimiento(error):
+    # Errores de reglas SQL (SIGNAL) y restricciones se presentan como errores de usuario.
+    codigo = 409 if getattr(error, "errno", None) in (1062, 1451, 1452, 1644, 3819) else 400
+    return jsonify({"error": "Operación rechazada por MySQL", "detalle": str(error)}), codigo
+
+
+@app.route("/partidos/<int:id_partido>/planilla/<ci>", methods=["DELETE"])
+@requiere_rol("administrador", "planillero")
+def quitar_de_planilla(id_partido, ci):
+    try:
+        ejecutar_procedimiento("sp_quitar_de_planilla", [id_partido, ci])
+        return jsonify({"mensaje": "Jugador quitado de la planilla"})
+    except Error as error:
+        return error_procedimiento(error)
+
+
+@app.route("/goles/<int:id_gol>", methods=["DELETE"])
+@requiere_rol("administrador", "planillero")
+def eliminar_gol(id_gol):
+    try:
+        ejecutar_procedimiento("sp_eliminar_gol", [id_gol])
+        return jsonify({"mensaje": "Gol eliminado"})
+    except Error as error:
+        return error_procedimiento(error)
+
+
+@app.route("/tarjetas/<int:id_tarjeta>", methods=["DELETE"])
+@requiere_rol("administrador", "planillero")
+def eliminar_tarjeta(id_tarjeta):
+    try:
+        ejecutar_procedimiento("sp_eliminar_tarjeta", [id_tarjeta])
+        return jsonify({"mensaje": "Tarjeta eliminada"})
+    except Error as error:
+        return error_procedimiento(error)
+
+
+@app.route("/sanciones/disciplinarias", methods=["POST"])
+@requiere_rol("administrador")
+def crear_sancion_disciplinaria():
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+    ci = datos.get("ci_jugador")
+    torneo = numero_entero(datos.get("id_torneo"))
+    fecha = numero_entero(datos.get("numero_fecha_inicio"))
+    cantidad = numero_entero(datos.get("cantidad_fechas"))
+    if (not isinstance(ci, str) or not ci.isdigit() or not 1 <= len(ci) <= 8
+            or any(v is None or v < 1 for v in (torneo, fecha, cantidad))):
+        return jsonify({"error": "Datos de sanción inválidos"}), 400
+    try:
+        resultados = ejecutar_procedimiento("sp_sancion_disciplinaria", [ci, torneo, fecha, cantidad])
+        return jsonify({"mensaje": "Sanción registrada", "resultados": resultados}), 201
+    except Error as error:
+        return error_procedimiento(error)
+
+
+# Reportes: nombres fijos para evitar SQL dinámico no confiable.
+VISTAS_REPORTE = {
+    "v_disciplina_jugador", "v_equipo_partido", "v_fair_play",
+    "v_goleadores", "v_jugadores_por_facultad_tipo",
+    "v_jugadores_sin_planilla", "v_partido_detalle",
+    "v_porcentaje_partidos", "v_promedio_goles_por_edicion",
+    "v_promedio_goles_por_fecha", "v_resultado_partido",
+    "v_sanciones_por_equipo_motivo", "v_suspendidos_por_fecha",
+    "v_tabla_posiciones", "v_uso_canchas", "v_uso_turnos",
+    "v_valla_menos_vencida",
+}
+
+
+@app.route("/reportes", methods=["GET"])
+@requiere_rol("administrador", "planillero")
+def listar_reportes():
+    return jsonify(sorted(VISTAS_REPORTE))
+
+
+@app.route("/reportes/<nombre>", methods=["GET"])
+@requiere_rol("administrador", "planillero")
+def consultar_reporte(nombre):
+    if nombre not in VISTAS_REPORTE:
+        return jsonify({"error": "Reporte inexistente"}), 404
+    conexion = None
+    cursor = None
+    try:
+        conexion = obtener_conexion()
+        cursor = conexion.cursor(dictionary=True)
+        cursor.execute(f"SELECT * FROM `{nombre}`")
+        filas = cursor.fetchall()
+        from datetime import timedelta
+        for fila in filas:
+            for campo, valor in fila.items():
+                if isinstance(valor, timedelta):
+                    fila[campo] = str(valor)
+        return jsonify(filas)
+    except Error as error:
+        app.logger.exception("Error en reporte %s", nombre)
+        return jsonify({"error": "No se pudo consultar el reporte"}), 500
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conexion is not None:
+            conexion.close()
 
 
 if __name__ == "__main__":
