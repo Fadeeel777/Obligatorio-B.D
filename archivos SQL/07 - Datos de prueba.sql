@@ -1,6 +1,6 @@
 USE torneo_futbol5;
 
--- =====================================================================
+
 -- Datos de prueba
 -- Se corre DESPUÉS de 01, 02, 04, 05 y 06: todo pasa por los triggers y
 -- procedimientos, así que los datos cumplen las mismas reglas que la app.
@@ -21,14 +21,14 @@ USE torneo_futbol5;
 --   SET TIMESTAMP cambia el NOW() de esta sesión (y de nada más), así que
 --   simulamos que el planillero cargó cada partido al terminar.
 --   Las reglas se validan igual. Al final se vuelve a la hora real.
--- =====================================================================
 
 
--- ---------------------------------------------------------------------
+
+
 -- Ayuda temporal: pone en la planilla a todo el plantel de los dos
 -- equipos, salvo suspendidos y suplentes (camiseta >= 20).
 -- Se borra al final del archivo.
--- ---------------------------------------------------------------------
+
 DELIMITER $$
 DROP PROCEDURE IF EXISTS tmp_cargar_planilla$$
 CREATE PROCEDURE tmp_cargar_planilla(IN p_id_partido INT)
@@ -46,9 +46,9 @@ END$$
 DELIMITER ;
 
 
--- ---------------------------------------------------------------------
+
 -- Jugadores
--- ---------------------------------------------------------------------
+
 INSERT INTO jugador (ci, nombre, apellido, email, fecha_nacimiento, id_facultad, tipo) VALUES
   -- Ingeniería y Tecnologías (4)
   ('4810235', 'Santiago',   'Pereira',   'santiago.pereira@correo.ucu.edu.uy',   '2002-03-14', 4, 'grado'),
@@ -102,9 +102,9 @@ INSERT INTO jugador (ci, nombre, apellido, email, fecha_nacimiento, id_facultad,
   ('5634569', 'Camilo',     'Bentancur', 'camilo.bentancur@correo.ucu.edu.uy',   '2005-08-21', 7, 'grado');
 
 
--- =====================================================================
+
 -- TORNEO 1 - 2026 Semestre 1 (termina finalizado)
--- =====================================================================
+
 INSERT INTO torneo (id_torneo, nombre, anio, semestre, fecha_inicio, fecha_fin) VALUES
   (1, 'Copa UCU 2026 - Semestre 1', 2026, 1, '2026-04-01', '2026-06-30');
 
@@ -195,9 +195,9 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
 CALL sp_cambiar_estado_torneo(1, 'finalizado');
 
 
--- =====================================================================
+
 -- TORNEO 2 - 2026 Semestre 2 (queda en curso)
--- =====================================================================
+
 INSERT INTO torneo (id_torneo, nombre, anio, semestre, fecha_inicio, fecha_fin) VALUES
   (2, 'Copa UCU 2026 - Semestre 2', 2026, 2, '2026-08-17', '2026-11-30');
 
@@ -293,7 +293,7 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
 INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
   (9, '3678901', 26, 'amarilla'), (9, '5189046', 40, 'amarilla');
 
--- ----- Fecha 2 -----
+-- Fecha 2 
 
 -- Partido 10: Ingeniería 1-1 Psicología
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-09-15 20:10:00');
@@ -323,7 +323,7 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
   (12, '5012384',  5, 0), (12, '5156723', 17, 0), (12, '5156723', 30, 0),
   (12, '5345671', 44, 0), (12, '3987456', 52, 1);
 
--- ----- Fecha 3 -----
+-- Fecha 3 
 
 -- Partido 13: Ingeniería 0-1 Salud
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-10-06 20:10:00');
@@ -366,11 +366,11 @@ UPDATE partido SET estado = 'postergado' WHERE id_partido = 17;
 SET TIMESTAMP = DEFAULT;
 
 
--- =====================================================================
+
 -- TORNEO 3 - 2027 Semestre 1 (en inscripción)
 -- Un equipo con solo 2 jugadores, para probar el alta de planteles desde
 -- la app. Renzo Pintos (Ingeniería) no está en ningún equipo.
--- =====================================================================
+
 INSERT INTO torneo (id_torneo, nombre, anio, semestre, fecha_inicio, fecha_fin) VALUES
   (3, 'Copa UCU 2027 - Semestre 1', 2027, 1, '2027-03-29', '2027-06-30');
 

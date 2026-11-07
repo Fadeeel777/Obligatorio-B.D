@@ -1,12 +1,12 @@
 USE torneo_futbol5;
 
--- =====================================================================
+
 -- Casos que deben fallar: muestran que los triggers y checks funcionan.
 -- Se corre después de 07, con --force para que siga después de cada error:
 --   mysql -u root -p --force < "08 - Casos que deben fallar.sql"
 -- Cada sentencia tiene que tirar el error indicado en el comentario.
 -- Todo va dentro de una transacción con ROLLBACK: no deja cambios.
--- =====================================================================
+
 
 START TRANSACTION;
 
