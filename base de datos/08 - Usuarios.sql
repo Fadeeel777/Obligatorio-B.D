@@ -5,9 +5,9 @@ DROP USER IF EXISTS 'login_app'@'%';
 DROP USER IF EXISTS 'admin_app'@'%';
 DROP USER IF EXISTS 'planillero_app'@'%';
 
-CREATE USER 'login_app'@'%'      IDENTIFIED BY 'cambiar_clave_login';
-CREATE USER 'admin_app'@'%'      IDENTIFIED BY 'cambiar_clave_admin';
-CREATE USER 'planillero_app'@'%' IDENTIFIED BY 'cambiar_clave_planillero';
+CREATE USER 'login_app'@'%'      IDENTIFIED BY 'clave_login';
+CREATE USER 'admin_app'@'%'      IDENTIFIED BY 'clave_admin';
+CREATE USER 'planillero_app'@'%' IDENTIFIED BY 'clave_planillero';
 
 -- login_app: solo lee la tabla login
 GRANT SELECT ON torneo_futbol5.login TO 'login_app'@'%';
