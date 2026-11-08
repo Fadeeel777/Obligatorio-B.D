@@ -26,11 +26,11 @@ services:
       DB_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root_docker}
       FLASK_SECRET_KEY: ${FLASK_SECRET_KEY:-clave_local_docker_cambiar}
       DB_LOGIN_USER: login_app
-      DB_LOGIN_PASSWORD: cambiar_clave_login
+      DB_LOGIN_PASSWORD: clave_login
       DB_ADMIN_USER: admin_app
-      DB_ADMIN_PASSWORD: cambiar_clave_admin
+      DB_ADMIN_PASSWORD: clave_admin
       DB_PLANILLERO_USER: planillero_app
-      DB_PLANILLERO_PASSWORD: cambiar_clave_planillero
+      DB_PLANILLERO_PASSWORD: clave_planillero
     ports:
       - "5001:5000"
     depends_on:
