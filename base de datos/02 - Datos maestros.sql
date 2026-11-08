@@ -42,8 +42,8 @@ INSERT INTO cancha (nombre_cancha, id_complejo, superficie, techada) VALUES
 --   planillero@ucu.edu.uy  -> Planillero2026!
 INSERT INTO login (correo, contrasena, rol) VALUES
   ('admin@ucu.edu.uy',
-   '$2b$12$8mCcrrFQrzBBfLK/moXBWe.y6IC7PMNwLNJR9HbE8MMGMGbxeSO6q',
+   '$2b$12$yhSvAYK08gFT4kBFEkiBN.T8u/mseU6sKQBc9t5q1I77rXb9hZvhW',
    'administrador'),
   ('planillero@ucu.edu.uy',
-   '$2b$12$LyIiOaJo1hQm47PVmRQ9/OeKiNlndcWp67ITQ/Fw44iiw3VmFqMey',
+   '$2b$12$zixj23NBJ.IFyTUuyZ0XfuqBZHb5fWDHUSKeYNWjMv01e/LG/QBh6',
    'planillero');
