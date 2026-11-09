@@ -71,7 +71,7 @@ GRANT SELECT ON torneo_futbol5.v_sanciones_por_equipo_motivo TO 'admin_app'@'%',
 GRANT SELECT ON torneo_futbol5.v_porcentaje_partidos        TO 'admin_app'@'%', 'planillero_app'@'%';
 GRANT SELECT ON torneo_futbol5.v_valla_menos_vencida        TO 'admin_app'@'%', 'planillero_app'@'%';
 GRANT SELECT ON torneo_futbol5.v_disciplina_jugador         TO 'admin_app'@'%', 'planillero_app'@'%';
-GRANT SELECT ON torneo_futbol5.v_equipo_partido             TO 'admin_app'@'%';
+GRANT SELECT ON torneo_futbol5.v_equipo_partido             TO 'admin_app'@'%', 'planillero_app'@'%';
 GRANT SELECT ON torneo_futbol5.v_partido_detalle            TO 'admin_app'@'%';
 GRANT SELECT ON torneo_futbol5.v_resultado_partido          TO 'admin_app'@'%';
 GRANT SELECT ON torneo_futbol5.v_suspendidos_por_fecha      TO 'admin_app'@'%';

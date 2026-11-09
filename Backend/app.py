@@ -39,6 +39,13 @@ def requiere_rol(*roles_permitidos):
     return decorador
 
 
+def conexion_actual():
+    rol = session.get("rol")
+    if rol not in ("administrador", "planillero"):
+        raise RuntimeError("No hay una sesión con rol válido")
+    return obtener_conexion(rol)
+
+
 
 @app.route("/")
 def inicio():
@@ -48,12 +55,13 @@ def inicio():
 
 
 @app.route("/facultades", methods=["GET"])
+@requiere_rol("administrador", "planillero")
 def listar_facultades():
     conexion = None
     cursor = None
 
     try:
-        conexion = obtener_conexion()
+        conexion = conexion_actual()
         cursor = conexion.cursor(dictionary=True)
 
         cursor.execute(
@@ -93,7 +101,7 @@ def login():
     cursor = None
 
     try:
-        conexion = obtener_conexion()
+        conexion = obtener_conexion("login")
         cursor = conexion.cursor(dictionary=True)
 
         cursor.execute(
@@ -221,7 +229,7 @@ def listar_jugadores():
     cursor = None
 
     try:
-        conexion = obtener_conexion()
+        conexion = conexion_actual()
         cursor = conexion.cursor(dictionary=True)
 
         cursor.execute("""
@@ -259,7 +267,7 @@ def crear_jugador():
     cursor = None
 
     try:
-        conexion = obtener_conexion()
+        conexion = conexion_actual()
         cursor = conexion.cursor()
 
         cursor.execute("""
@@ -318,7 +326,7 @@ def modificar_jugador(ci):
     cursor = None
 
     try:
-        conexion = obtener_conexion()
+        conexion = conexion_actual()
         cursor = conexion.cursor()
 
         cursor.execute("""
@@ -375,7 +383,7 @@ def eliminar_jugador(ci):
     cursor = None
 
     try:
-        conexion = obtener_conexion()
+        conexion = conexion_actual()
         cursor = conexion.cursor()
 
         cursor.execute(
@@ -452,7 +460,7 @@ def error_integridad(error):
 @app.route("/torneos", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def listar_torneos():
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("SELECT * FROM torneo ORDER BY anio DESC, semestre DESC")
@@ -484,7 +492,7 @@ def crear_torneo():
     if not inicio or not fin or inicio > fin:
         return jsonify({"error": "Fechas inválidas"}), 400
 
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor()
     try:
         cursor.execute("""
@@ -510,7 +518,7 @@ def crear_torneo():
 @app.route("/torneos/<int:id_torneo>/fechas", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def listar_fechas(id_torneo):
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -538,7 +546,7 @@ def crear_fecha(id_torneo):
     if numero is None or numero < 1 or not desde or not hasta or desde > hasta:
         return jsonify({"error": "Datos de fecha inválidos"}), 400
 
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -577,7 +585,7 @@ def crear_fecha(id_torneo):
 @app.route("/equipos", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def listar_equipos():
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -609,7 +617,7 @@ def crear_equipo():
     if not id_torneo or id_torneo < 1 or not id_facultad or id_facultad < 1:
         return jsonify({"error": "Torneo o facultad inválidos"}), 400
 
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor()
     try:
         cursor.execute("""
@@ -643,7 +651,7 @@ def modificar_equipo(id_equipo):
     if not nombre or len(nombre) > 100:
         return jsonify({"error": "Nombre inválido"}), 400
 
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor()
     try:
         cursor.execute("""
@@ -673,7 +681,7 @@ def modificar_equipo(id_equipo):
 @app.route("/equipos/<int:id_equipo>", methods=["DELETE"])
 @requiere_rol("administrador")
 def eliminar_equipo(id_equipo):
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor()
     try:
         cursor.execute(
@@ -700,7 +708,7 @@ def eliminar_equipo(id_equipo):
 @app.route("/equipos/<int:id_equipo>/jugadores", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def jugadores_equipo(id_equipo):
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -732,7 +740,7 @@ def inscribir_jugador(id_equipo):
     if camiseta is None or not 1 <= camiseta <= 99:
         return jsonify({"error": "Camiseta debe estar entre 1 y 99"}), 400
 
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -777,7 +785,7 @@ def inscribir_jugador(id_equipo):
 @app.route("/equipos/<int:id_equipo>/jugadores/<ci>", methods=["DELETE"])
 @requiere_rol("administrador")
 def quitar_jugador(id_equipo, ci):
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -828,7 +836,7 @@ def asignar_capitan(id_equipo):
         if not ci or len(ci) > 8:
             return jsonify({"error": "CI inválida"}), 400
 
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor()
     try:
         cursor.execute(
@@ -876,7 +884,7 @@ from datetime import datetime
 @app.route("/canchas", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def listar_canchas():
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -890,10 +898,244 @@ def listar_canchas():
         conexion.close()
 
 
+SUPERFICIES = {"sintetico", "parquet"}
+
+
+def superficie_valida(valor):
+    if not isinstance(valor, str):
+        return None
+    valor = valor.strip().lower().replace("é", "e")
+    return valor if valor in SUPERFICIES else None
+
+
+@app.route("/canchas", methods=["POST"])
+@requiere_rol("administrador")
+def crear_cancha():
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    nombre = str(datos.get("nombre_cancha") or "").strip()
+    id_complejo = numero_entero(datos.get("id_complejo"))
+    superficie = superficie_valida(datos.get("superficie"))
+    techada = datos.get("techada", False)
+
+    if not nombre or len(nombre) > 50:
+        return jsonify({"error": "Nombre de cancha inválido"}), 400
+    if id_complejo is None or id_complejo < 1:
+        return jsonify({"error": "Complejo inválido"}), 400
+    if superficie is None:
+        return jsonify({"error": "La superficie debe ser sintetico o parquet"}), 400
+    if not isinstance(techada, bool):
+        return jsonify({"error": "Techada debe ser true o false"}), 400
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO cancha (nombre_cancha, id_complejo, superficie, techada)
+            VALUES (%s, %s, %s, %s)
+        """, (nombre, id_complejo, superficie, techada))
+        conexion.commit()
+        return jsonify({"mensaje": "Cancha creada"}), 201
+    except IntegrityError as error:
+        conexion.rollback()
+        return error_integridad(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/canchas/<int:id_complejo>/<nombre_cancha>", methods=["PUT"])
+@requiere_rol("administrador")
+def modificar_cancha(id_complejo, nombre_cancha):
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    superficie = superficie_valida(datos.get("superficie"))
+    techada = datos.get("techada")
+
+    if superficie is None:
+        return jsonify({"error": "La superficie debe ser sintetico o parquet"}), 400
+    if not isinstance(techada, bool):
+        return jsonify({"error": "Techada debe ser true o false"}), 400
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            UPDATE cancha SET superficie = %s, techada = %s
+            WHERE id_complejo = %s AND nombre_cancha = %s
+        """, (superficie, techada, id_complejo, nombre_cancha))
+
+        if cursor.rowcount == 0:
+            cursor.execute("""
+                SELECT nombre_cancha FROM cancha
+                WHERE id_complejo = %s AND nombre_cancha = %s
+            """, (id_complejo, nombre_cancha))
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Cancha inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": "Cancha actualizada"})
+    except IntegrityError as error:
+        conexion.rollback()
+        return error_integridad(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/canchas/<int:id_complejo>/<nombre_cancha>", methods=["DELETE"])
+@requiere_rol("administrador")
+def eliminar_cancha(id_complejo, nombre_cancha):
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            DELETE FROM cancha
+            WHERE id_complejo = %s AND nombre_cancha = %s
+        """, (id_complejo, nombre_cancha))
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Cancha inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": "Cancha eliminada"})
+    except IntegrityError:
+        conexion.rollback()
+        return jsonify({
+            "error": "No se puede eliminar: la cancha tiene partidos asignados"
+        }), 409
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+def validar_complejo(datos):
+    for campo, limite in [("nombre", 100), ("direccion", 150), ("departamento", 50)]:
+        valor = str(datos.get(campo) or "").strip()
+        if not valor:
+            return f"Falta el campo {campo}"
+        if len(valor) > limite:
+            return f"El campo {campo} supera {limite} caracteres"
+    return None
+
+
+@app.route("/complejos", methods=["GET"])
+@requiere_rol("administrador", "planillero")
+def listar_complejos():
+    conexion = conexion_actual()
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        cursor.execute("SELECT * FROM complejo ORDER BY nombre")
+        return jsonify(cursor.fetchall())
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/complejos", methods=["POST"])
+@requiere_rol("administrador")
+def crear_complejo():
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    error = validar_complejo(datos)
+    if error:
+        return jsonify({"error": error}), 400
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO complejo (nombre, direccion, departamento)
+            VALUES (%s, %s, %s)
+        """, (datos["nombre"].strip(), datos["direccion"].strip(),
+              datos["departamento"].strip()))
+        conexion.commit()
+        return jsonify({
+            "mensaje": "Complejo creado",
+            "id_complejo": cursor.lastrowid
+        }), 201
+    except IntegrityError as error:
+        conexion.rollback()
+        return error_integridad(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/complejos/<int:id_complejo>", methods=["PUT"])
+@requiere_rol("administrador")
+def modificar_complejo(id_complejo):
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    error = validar_complejo(datos)
+    if error:
+        return jsonify({"error": error}), 400
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            UPDATE complejo SET nombre = %s, direccion = %s, departamento = %s
+            WHERE id_complejo = %s
+        """, (datos["nombre"].strip(), datos["direccion"].strip(),
+              datos["departamento"].strip(), id_complejo))
+
+        if cursor.rowcount == 0:
+            cursor.execute(
+                "SELECT id_complejo FROM complejo WHERE id_complejo = %s",
+                (id_complejo,)
+            )
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Complejo inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": "Complejo actualizado"})
+    except IntegrityError as error:
+        conexion.rollback()
+        return error_integridad(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/complejos/<int:id_complejo>", methods=["DELETE"])
+@requiere_rol("administrador")
+def eliminar_complejo(id_complejo):
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute(
+            "DELETE FROM complejo WHERE id_complejo = %s",
+            (id_complejo,)
+        )
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Complejo inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": "Complejo eliminado"})
+    except IntegrityError:
+        conexion.rollback()
+        return jsonify({
+            "error": "No se puede eliminar: el complejo tiene canchas registradas"
+        }), 409
+    finally:
+        cursor.close()
+        conexion.close()
+
+
 @app.route("/turnos", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def listar_turnos():
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("SELECT * FROM turno ORDER BY hora_inicio")
@@ -914,7 +1156,7 @@ def listar_turnos():
 @app.route("/partidos", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def listar_partidos():
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -958,13 +1200,121 @@ def crear_partido():
         return error_procedimiento(error)
 
 
+@app.route("/partidos/<int:id_partido>", methods=["PUT"])
+@requiere_rol("administrador")
+def reprogramar_partido(id_partido):
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    dia = fecha_valida(datos.get("dia"))
+    id_turno = numero_entero(datos.get("id_turno"))
+    id_complejo = numero_entero(datos.get("id_complejo"))
+    cancha = datos.get("nombre_cancha")
+
+    if (not dia or id_turno is None or id_turno < 1
+            or id_complejo is None or id_complejo < 1
+            or not isinstance(cancha, str) or not cancha.strip()
+            or len(cancha.strip()) > 50):
+        return jsonify({"error": "Datos del partido inválidos"}), 400
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            UPDATE partido
+            SET dia = %s, id_turno = %s, nombre_cancha = %s, id_complejo = %s
+            WHERE id_partido = %s
+        """, (dia, id_turno, cancha.strip(), id_complejo, id_partido))
+
+        if cursor.rowcount == 0:
+            cursor.execute(
+                "SELECT id_partido FROM partido WHERE id_partido = %s",
+                (id_partido,)
+            )
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Partido inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": "Partido reprogramado"})
+    except Error as error:
+        conexion.rollback()
+        return error_procedimiento(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/partidos/<int:id_partido>/estado", methods=["PUT"])
+@requiere_rol("administrador")
+def cambiar_estado_partido(id_partido):
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    estado = datos.get("estado")
+    if estado not in ("programado", "postergado", "cancelado"):
+        return jsonify({
+            "error": "Estado inválido (programado, postergado o cancelado)"
+        }), 400
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute(
+            "UPDATE partido SET estado = %s WHERE id_partido = %s",
+            (estado, id_partido)
+        )
+
+        if cursor.rowcount == 0:
+            cursor.execute(
+                "SELECT id_partido FROM partido WHERE id_partido = %s",
+                (id_partido,)
+            )
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Partido inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": f"Partido {estado}"})
+    except Error as error:
+        conexion.rollback()
+        return error_procedimiento(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/partidos/<int:id_partido>", methods=["DELETE"])
+@requiere_rol("administrador")
+def eliminar_partido(id_partido):
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute(
+            "DELETE FROM partido WHERE id_partido = %s",
+            (id_partido,)
+        )
+
+        if cursor.rowcount == 0:
+            return jsonify({"error": "Partido inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": "Partido eliminado"})
+    except Error as error:
+        conexion.rollback()
+        return error_procedimiento(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
 
 # -------- PLANILLAS --------
 
 @app.route("/partidos/<int:id_partido>/planilla", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def consultar_planilla(id_partido):
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
 
     try:
@@ -1055,7 +1405,7 @@ def registrar_tarjeta(id_partido):
 @app.route("/partidos/<int:id_partido>/eventos", methods=["GET"])
 @requiere_rol("administrador", "planillero")
 def consultar_eventos(id_partido):
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
 
     try:
@@ -1126,7 +1476,7 @@ def ejecutar_procedimiento(nombre, parametros):
     if nombre not in permitidos:
         raise ValueError("Procedimiento no permitido")
 
-    conexion = obtener_conexion()
+    conexion = conexion_actual()
     cursor = conexion.cursor(dictionary=True)
 
     try:
@@ -1237,6 +1587,109 @@ def crear_sancion_disciplinaria():
         return error_procedimiento(error)
 
 
+@app.route("/sanciones", methods=["GET"])
+@requiere_rol("administrador", "planillero")
+def listar_sanciones():
+    id_torneo = request.args.get("id_torneo")
+    filtro = ""
+    parametros = ()
+
+    if id_torneo is not None:
+        id_torneo = numero_entero(id_torneo)
+        if id_torneo is None or id_torneo < 1:
+            return jsonify({"error": "Torneo inválido"}), 400
+        filtro = "WHERE s.id_torneo = %s"
+        parametros = (id_torneo,)
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        cursor.execute(f"""
+            SELECT s.*, j.nombre, j.apellido
+            FROM sancion_jugador s
+            JOIN jugador j ON j.ci = s.ci_jugador
+            {filtro}
+            ORDER BY s.id_torneo, s.numero_fecha_inicio, j.apellido
+        """, parametros)
+        return jsonify(cursor.fetchall())
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/sanciones/<int:id_sancion>", methods=["PUT"])
+@requiere_rol("administrador")
+def modificar_sancion(id_sancion):
+    datos = datos_json()
+    if datos is None:
+        return jsonify({"error": "JSON inválido"}), 400
+
+    fecha = numero_entero(datos.get("numero_fecha_inicio"))
+    cantidad = numero_entero(datos.get("cantidad_fechas"))
+    if any(v is None or v < 1 for v in (fecha, cantidad)):
+        return jsonify({"error": "Datos de sanción inválidos"}), 400
+
+    conexion = conexion_actual()
+    cursor = conexion.cursor()
+    try:
+        cursor.execute("""
+            UPDATE sancion_jugador
+            SET numero_fecha_inicio = %s, cantidad_fechas = %s
+            WHERE id_sancion = %s
+        """, (fecha, cantidad, id_sancion))
+
+        if cursor.rowcount == 0:
+            cursor.execute(
+                "SELECT id_sancion FROM sancion_jugador WHERE id_sancion = %s",
+                (id_sancion,)
+            )
+            if cursor.fetchone() is None:
+                return jsonify({"error": "Sanción inexistente"}), 404
+
+        conexion.commit()
+        return jsonify({"mensaje": "Sanción actualizada"})
+    except Error as error:
+        conexion.rollback()
+        return error_procedimiento(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
+@app.route("/sanciones/<int:id_sancion>", methods=["DELETE"])
+@requiere_rol("administrador")
+def eliminar_sancion(id_sancion):
+    conexion = conexion_actual()
+    cursor = conexion.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT motivo FROM sancion_jugador WHERE id_sancion = %s",
+            (id_sancion,)
+        )
+        sancion = cursor.fetchone()
+
+        if sancion is None:
+            return jsonify({"error": "Sanción inexistente"}), 404
+
+        if sancion["motivo"] != "disciplinaria":
+            return jsonify({
+                "error": "Las sanciones automáticas se eliminan junto con su tarjeta"
+            }), 409
+
+        cursor.execute(
+            "DELETE FROM sancion_jugador WHERE id_sancion = %s",
+            (id_sancion,)
+        )
+        conexion.commit()
+        return jsonify({"mensaje": "Sanción eliminada"})
+    except Error as error:
+        conexion.rollback()
+        return error_procedimiento(error)
+    finally:
+        cursor.close()
+        conexion.close()
+
+
 # Reportes: nombres fijos para evitar SQL dinámico no confiable.
 VISTAS_REPORTE = {
     "v_disciplina_jugador", "v_equipo_partido", "v_fair_play",
@@ -1264,7 +1717,7 @@ def consultar_reporte(nombre):
     conexion = None
     cursor = None
     try:
-        conexion = obtener_conexion()
+        conexion = conexion_actual()
         cursor = conexion.cursor(dictionary=True)
         cursor.execute(f"SELECT * FROM `{nombre}`")
         filas = cursor.fetchall()

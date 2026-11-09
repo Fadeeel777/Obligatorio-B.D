@@ -2,32 +2,9 @@ USE torneo_futbol5;
 
 
 -- Datos de prueba
--- Se corre DESPUÉS de 01, 02, 04, 05 y 06: todo pasa por los triggers y
--- procedimientos, así que los datos cumplen las mismas reglas que la app.
---
--- Escenario:
---   Torneo 1 (2026 S1): 4 equipos, 3 fechas, todo jugado, FINALIZADO.
---   Torneo 2 (2026 S2): 6 equipos, 5 fechas, EN CURSO.
---       Fechas 1-3 jugadas (un partido cancelado).
---       Fecha 4: un partido ya pasó pero falta cargarlo (para probar al
---                planillero), uno postergado y uno programado.
---       Fecha 5: programada.
---       Para la fecha 4 hay suspendidos de los tres motivos.
---   Torneo 3 (2027 S1): en INSCRIPCIÓN, con un equipo incompleto.
---
--- Por qué SET TIMESTAMP:
---   Los triggers solo dejan marcar un partido como jugado si su turno ya
---   pasó, y cargar planilla/goles/tarjetas dentro de las 48 h siguientes.
---   SET TIMESTAMP cambia el NOW() de esta sesión (y de nada más), así que
---   simulamos que el planillero cargó cada partido al terminar.
---   Las reglas se validan igual. Al final se vuelve a la hora real.
 
 
-
-
--- Ayuda temporal: pone en la planilla a todo el plantel de los dos
--- equipos, salvo suspendidos y suplentes (camiseta >= 20).
--- Se borra al final del archivo.
+-- Ayuda temporal
 
 DELIMITER $$
 DROP PROCEDURE IF EXISTS tmp_cargar_planilla$$
@@ -102,7 +79,6 @@ INSERT INTO jugador (ci, nombre, apellido, email, fecha_nacimiento, id_facultad,
   ('5634569', 'Camilo',     'Bentancur', 'camilo.bentancur@correo.ucu.edu.uy',   '2005-08-21', 7, 'grado');
 
 
-
 -- TORNEO 1 - 2026 Semestre 1 (termina finalizado)
 
 INSERT INTO torneo (id_torneo, nombre, anio, semestre, fecha_inicio, fecha_fin) VALUES
@@ -131,7 +107,6 @@ INSERT INTO equipo_jugador_torneo (id_equipo, ci_jugador, id_torneo, numero_cami
 
 CALL sp_cambiar_estado_torneo(1, 'en_curso');
 
--- Turnos: 1=18h 2=19h 3=20h 4=21h 5=22h
 INSERT INTO partido (id_partido, id_torneo, numero_fecha, id_equipo_local, id_equipo_visitante,
                      dia, id_turno, nombre_cancha, id_complejo) VALUES
   (1, 1, 1, 1, 2, '2026-04-07', 2, 'Celeste', 1),
@@ -150,7 +125,7 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
 INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
   (1, '5129476', 28, 'amarilla');
 
--- Partido 2: Derecho 0-0 Salud. Roja a Rodrigo Álvarez: no juega la fecha 2
+-- Partido 2: Derecho 0-0 Salud
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-04-07 21:10:00');
 CALL sp_marcar_partido_jugado(2);
 CALL tmp_cargar_planilla(2);
@@ -158,10 +133,10 @@ INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
   (2, '2987654', 22, 'amarilla'),
   (2, '5267390', 50, 'roja');
 
--- Partido 3: Ingeniería 3-3 Derecho (un autogol de Nicolás Fernández)
+-- Partido 3: Ingeniería 3-3 Derecho
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-04-21 20:10:00');
 CALL sp_marcar_partido_jugado(3);
-CALL tmp_cargar_planilla(3);              -- Rodrigo Álvarez queda afuera (suspendido)
+CALL tmp_cargar_planilla(3);
 INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
   (3, '4810235',  5, 0), (3, '5156723', 10, 0), (3, '4810235', 22, 0),
   (3, '5378124', 30, 0), (3, '5023147', 48, 0), (3, '5136982', 55, 1);
@@ -195,7 +170,6 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
 CALL sp_cambiar_estado_torneo(1, 'finalizado');
 
 
-
 -- TORNEO 2 - 2026 Semestre 2 (queda en curso)
 
 INSERT INTO torneo (id_torneo, nombre, anio, semestre, fecha_inicio, fecha_fin) VALUES
@@ -216,8 +190,6 @@ INSERT INTO equipo (id_equipo, nombre, id_torneo, id_facultad, ci_capitan) VALUE
   (9,  'Psico Juniors',        2, 5, '5445670'),
   (10, 'Humanas FC',           2, 1, '5489014');
 
--- Bruno Sosa (Ingeniería) y Manuel Medina (Derecho) llevan la 21: son
--- suplentes que nunca entran a la planilla (salen en v_jugadores_sin_planilla).
 INSERT INTO equipo_jugador_torneo (id_equipo, ci_jugador, id_torneo, numero_camiseta) VALUES
   (5,  '4810235', 2, 10), (5,  '5023147', 2, 5),  (5,  '5136982', 2, 4),
   (5,  '4932571', 2, 9),  (5,  '3456120', 2, 1),  (5,  '5247813', 2, 7),
@@ -271,7 +243,7 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
   (7, '4810235',  7, 0), (7, '4932571', 25, 0),
   (7, '5190125', 38, 0), (7, '5247813', 50, 0);
 INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
-  (7, '5023147', 30, 'amarilla'),        -- Martín Rodríguez: 1ra amarilla
+  (7, '5023147', 30, 'amarilla'),
   (7, '4432109', 44, 'amarilla');
 
 -- Partido 8: Empresariales 0-2 Psicología
@@ -302,9 +274,9 @@ CALL tmp_cargar_planilla(10);
 INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
   (10, '5378903', 12, 0), (10, '5136982', 40, 0);
 INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
-  (10, '5023147', 55, 'amarilla');       -- Martín Rodríguez: 2da amarilla
+  (10, '5023147', 55, 'amarilla');
 
--- Partido 11: Humanas 1-0 Salud. Germán Cabrera: doble amarilla y roja
+-- Partido 11: Humanas 1-0 Salud
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-09-15 21:10:00');
 CALL sp_marcar_partido_jugado(11);
 CALL tmp_cargar_planilla(11);
@@ -313,9 +285,9 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
 INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
   (11, '5112347', 10, 'amarilla'),
   (11, '5112347', 35, 'amarilla'),
-  (11, '5112347', 35, 'roja');           -- suspendido en la fecha 3
+  (11, '5112347', 35, 'roja');
 
--- Partido 12: Empresariales 2-3 Derecho (autogol de Pablo Castro)
+-- Partido 12: Empresariales 2-3 Derecho
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-09-16 22:10:00');
 CALL sp_marcar_partido_jugado(12);
 CALL tmp_cargar_planilla(12);
@@ -328,14 +300,14 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
 -- Partido 13: Ingeniería 0-1 Salud
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-10-06 20:10:00');
 CALL sp_marcar_partido_jugado(13);
-CALL tmp_cargar_planilla(13);              -- Germán Cabrera queda afuera (suspendido)
+CALL tmp_cargar_planilla(13);
 INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
   (13, '4654321', 39, 0);
 INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
-  (13, '5023147', 20, 'amarilla'),       -- Martín Rodríguez: 3ra amarilla -> suspendido fecha 4
+  (13, '5023147', 20, 'amarilla'),
   (13, '3456120', 48, 'amarilla');
 
--- Partido 14: Psicología 1-2 Derecho. Roja a Ignacio Acosta
+-- Partido 14: Psicología 1-2 Derecho
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-10-07 21:10:00');
 CALL sp_marcar_partido_jugado(14);
 CALL tmp_cargar_planilla(14);
@@ -343,33 +315,24 @@ INSERT INTO gol (id_partido, ci_jugador, minuto, autogol) VALUES
   (14, '5267390', 11, 0), (14, '5156723', 26, 0), (14, '5445670', 50, 0);
 INSERT INTO tarjeta (id_partido, ci_jugador, minuto, color) VALUES
   (14, '5156781', 33, 'amarilla'),
-  (14, '5378124', 45, 'roja');           -- suspendido en la fecha 4
+  (14, '5378124', 45, 'roja');
 
--- Partido 15: Humanas vs Empresariales, cancelado (no había árbitro)
+-- Partido 15: Humanas vs Empresariales
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-10-07 22:00:00');
 UPDATE partido SET estado = 'cancelado' WHERE id_partido = 15;
 
--- Sanción disciplinaria: Andrés Gómez, fechas 4 y 5
+-- Sanción disciplinaria
 SET TIMESTAMP = UNIX_TIMESTAMP('2026-10-09 12:00:00');
 CALL sp_sancion_disciplinaria('4765432', 2, 4, 2);
 
 -- ----- Fecha 4 -----
--- Partido 16 (Ingeniería vs Derecho, 3/11): ya pasó pero sigue 'programado'.
---   Sirve para probar en la app que el planillero lo marque como jugado y
---   cargue la planilla. Tienen que rebotar Martín Rodríguez (amarillas),
---   Ignacio Acosta (roja) y Andrés Gómez (disciplinaria).
--- Partido 17 (Salud vs Empresariales): postergado.
--- Partido 18 (Psicología vs Humanas, 6/11): programado.
+-- Partido 17: Salud vs Empresariales
 UPDATE partido SET estado = 'postergado' WHERE id_partido = 17;
 
--- Volver a la hora real
 SET TIMESTAMP = DEFAULT;
 
 
-
 -- TORNEO 3 - 2027 Semestre 1 (en inscripción)
--- Un equipo con solo 2 jugadores, para probar el alta de planteles desde
--- la app. Renzo Pintos (Ingeniería) no está en ningún equipo.
 
 INSERT INTO torneo (id_torneo, nombre, anio, semestre, fecha_inicio, fecha_fin) VALUES
   (3, 'Copa UCU 2027 - Semestre 1', 2027, 1, '2027-03-29', '2027-06-30');
